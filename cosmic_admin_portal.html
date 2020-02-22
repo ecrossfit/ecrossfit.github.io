@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<title></title>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Ensures optimal rendering on mobile devices. -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" /> <!-- Optimal Internet Explorer compatibility -->
+
+    <script src="https://www.gstatic.com/firebasejs/7.8.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.8.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.8.1/firebase-analytics.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.8.1/firebase-auth.js"></script>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/jquery/latest/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+  </head>
+  
+  <body>
+
+    <style>
+      p{
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      table {
+      font-family: arial, sans-serif;
+      border-collapse: collapse;
+      font-size: 14px;
+      }
+
+      td, th {
+      border: 1px solid #dddddd;
+      text-align: left;
+      padding: 4px;
+      height: 15px;
+      }
+
+      #tableInput{
+      height: 15px;
+      }
+
+      tr:nth-child(even) {
+      background-color: #dddddd;
+      }
+      tr:nth-child(odd) {
+      background-color: transparent;
+      }
+
+      /* Tooltip container */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 500px;
+  background-color: #555;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+
+  /* Position the tooltip text */
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -250px;
+
+  /* Fade in tooltip */
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+/* Tooltip arrow */
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #555 transparent transparent transparent;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+    </style>
+
+    <div id = "login_div" style="display: none;">
+        <p>Email</p>
+        <input id="email_input" type="text">
+        <p>Password</p>
+        <input id="password_input" type="password" onsubmit="log_in()">
+        <p>Remember Me <input type="checkbox" id="remember_input"></p>
+        <button id="login_button" onclick="log_in()">Login</button>
+    </div>
+
+    <div id="content_div" style="display: none;">
+      <button onclick="log_out()">Log Out</button>
+
+      <h1 style="font-family: Arial, Helvetica, sans-serif;">Classes</h1>
+      <div id="loading_classes" style="display: none;">Loading Classes...</div>
+      <div id="classes_table_div">
+      </div>
+      <button id="add_class_button" onclick="addClassRow()">Add Class +</button>
+      <br><br>
+      <div id="new_class_div" style="display: none;">
+        <table id='classes_table'><tr><th>Time</th><th>Reserved</th><th>Capacity</th></tr>
+        <tr><td><input type="text"   id="new_class_time" name="new_class_time" value="" /></td>
+            <td><input type="number" id="new_class_reserved" value=0 /></td>
+            <td><input type="number" id="new_class_capacity" value=10 /></td></tr>
+          </table>
+        <button onclick="saveClassRow()">Save</button><button onclick="cancelAddClassRow()">Cancel</button>
+      </div>
+
+      <h1 style="font-family: Arial, Helvetica, sans-serif;">People</h1>
+      <div id="loading_people" style="display: none;">Loading People...</div>
+      <div id="people_table_div">
+      </div>
+
+    </div>
+
+    <script>
+      $(function() {
+        $('input[name=new_class_time]').daterangepicker({
+          timePicker: true,
+          singleDatePicker: true,
+          showDropdowns: true,
+          startDate: new Date(),
+          // startDate: moment().startOf('hour'),
+          locale: {
+            format: 'MM/DD/YYYY hh:mm A'
+          }
+        }, function(start, end, label) {
+        });
+      });
+      // Get the input field
+      var input1 = document.getElementById("email_input");
+      var input2 = document.getElementById("password_input");
+
+      // Execute a function when the user releases a key on the keyboard
+      input1.addEventListener("keyup", function(event) {
+        // Number 13 is the "Enter" key on the keyboard
+        if (event.keyCode === 13) {
+          // Cancel the default action, if needed
+          event.preventDefault();
+          // Trigger the button element with a click
+          document.getElementById("login_button").click();
+        }
+      });
+      input2.addEventListener("keyup", function(event) {
+        if (event.keyCode === 13) {
+          event.preventDefault();
+          document.getElementById("login_button").click();
+        }
+      });
+
+      var daysShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+      var firebaseConfig = {
+        apiKey: "AIzaSyDrpy3LtcxjPzXFXwZ-bkDNT9xs3kw8YtU",
+        authDomain: "cosmic-crossfit-4c1ad.firebaseapp.com",
+        databaseURL: "https://cosmic-crossfit-4c1ad.firebaseio.com",
+        projectId: "cosmic-crossfit-4c1ad",
+        storageBucket: "cosmic-crossfit-4c1ad.appspot.com",
+        messagingSenderId: "515638877005",
+        appId: "1:515638877005:web:6e88c515c36b3a2c1db504",
+        measurementId: "G-0HSFSE47H6"
+      };
+      firebase.initializeApp(firebaseConfig);
+      firebase.analytics();
+
+      firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+          // User is signed in.
+          loadContentDiv();
+        }
+        else {
+          document.getElementById("login_div").style.display = "block";
+        }
+      });
+
+    function getTimeText(dateTime){
+        var am_pm = "am";
+        var hour = dateTime.getHours();
+        if(hour > 11)
+            am_pm = "pm";
+        if(hour > 12)
+            hour -= 12;
+
+        var extra_minute0 = "";
+        if(dateTime.getMinutes() < 10){
+            extra_minute0 = "0";
+        }
+        if(hour == 0)
+          hour = 12;
+        return hour + ":" + extra_minute0 + dateTime.getMinutes() + am_pm;
+    }
+
+    function log_in(){
+      document.getElementById("login_div").style.display = "none";
+
+      var persistenceVar;
+      if(document.getElementById("remember_input").checked)
+        persistenceVar = firebase.auth.Auth.Persistence.LOCAL;
+      else
+        persistenceVar = firebase.auth.Auth.Persistence.NONE;
+
+        firebase.auth().setPersistence(persistenceVar).then(function() {
+            return firebase.auth().signInWithEmailAndPassword(document.getElementById("email_input").value, document.getElementById("password_input").value).then(function() {
+              loadContentDiv();
+              }).catch(function(error) {
+              // Handle Errors here.
+              var errorCode = error.code;
+              var errorMessage = error.message;
+              console.log("login error " + errorMessage);
+              window.alert(errorMessage);
+              // ...
+              document.getElementById("login_div").style.display = "block";
+            });
+          }).catch(function(error) {
+            // Handle Errors here.
+            var errorCode = error.code;
+            var errorMessage = error.message;
+            console.log("persistence error " + errorMessage);
+            window.alert(errorMessage);
+      });
+    }
+
+    function log_out(){
+      firebase.auth().signOut().then(function() {
+        document.getElementById("login_div").style.display = "block";
+        document.getElementById("content_div").style.display = "none";
+      }).catch(function(error) {
+        window.alert(errorMessage);
+      });
+    }
+
+    var daysShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    
+    function getDateSuffix(dateTime){
+      var suffix = "th";
+            var day = dateTime.getDate();
+            if(day % 10 == 1 && (day - (day % 10)) != 10)
+                suffix = "st";
+            else if(day % 10 == 2 && (day - (day % 10)) != 10)
+                suffix = "nd";
+            else if(day % 10 == 3 && (day - (day % 10)) != 10)
+                suffix = "rd";
+        return suffix;
+    }
+
+    function getTimeText(dateTime){
+        var am_pm = "am";
+        var hour = dateTime.getHours();
+        if(hour > 11)
+            am_pm = "pm";
+        if(hour > 12)
+            hour -= 12;
+
+        var extra_minute0 = "";
+        if(dateTime.getMinutes() < 10){
+            extra_minute0 = "0";
+        }
+        return hour + ":" + extra_minute0 + dateTime.getMinutes() + am_pm;
+    }
+
+    var questions = [
+      "1. Has a Doctor ever said you have a heart condition and recommended only medically supervised activity?",
+      "2. Do you have chest pain brought on by physical activity?",
+      "3. Do you tend to lose consciousness or fall over as a result of dizziness?",
+      "4. Has a doctor ever recommend medication for your blood pressure or a heart condition?",
+      "5. Do you have a bone or joint problem that could be aggravated by the proposed physical activity?",
+      "6. Are you aware, through your own experience or a doctor's advice, of any other physical reason against your exercising without medical supervision?",
+      "7. Are you over the age of 65 and not accustomed to vigorous exercise?",
+      "8. Have you consulted your physician regarding increasing your physical activity and/or performing a fitness assessment?",
+      "9. Will you consult your physician prior to increasing your physical activity and/or performing a fitness assessment?"
+    ];
+
+    function loadContentDiv(){
+      document.getElementById("email_input").value = "";
+      document.getElementById("password_input").value = "";
+      document.getElementById("content_div").style.display = "block";
+      document.getElementById("loading_people").style.display = "block";
+      document.getElementById("loading_classes").style.display = "block";
+      document.getElementById("add_class_button").style.display = "none";
+      document.getElementById("new_class_div").style.display = "none";
+
+      var peopleRef = firebase.database().ref('people').orderByChild('time');
+      peopleRef.on('value', function(snapshot) {
+        document.getElementById("loading_people").style.display = "none";
+        document.getElementById("people_table_div").innerHTML = "<table id='people_table'><tr><th>Name</th><th>Phone</th><th>E-mail</th><th>Subscribed?</th><th>Paypal Order ID</th><th>Answers</th><th>Notes</th></tr></table>";
+        var lastTime = 0;
+        snapshot.forEach(function(childSnapshot) {
+          var personKey = childSnapshot.key;
+          var personData = childSnapshot.val();
+
+          var table = document.getElementById("people_table");
+          var len = table.rows.length;
+
+          if(personData.time != lastTime){
+            lastTime = personData.time;
+            var dateTime = new Date(lastTime);
+            var row = table.insertRow(len);
+            var cell1 = row.insertCell(0);
+            cell1.innerHTML = "<p><b>" + getFormattedDateTime(dateTime) +"</b></p>";
+            cell1.colSpan = "7";
+          }
+
+          var deleteFunction = "deletePerson('" + personKey + "')";
+          len = table.rows.length;
+          var row = table.insertRow(len);
+          var cell1 = row.insertCell(0);
+          cell1.innerHTML = "<p>" + personData.first_name + " " + personData.last_name +"</p>";
+          var cell2 = row.insertCell(1);
+          cell2.innerHTML = "<p>" + personData.phone + "</p>";
+          var cell3 = row.insertCell(2);
+          cell3.innerHTML = "<p>" + personData.email + "</p>";
+          var cell4 = row.insertCell(3);
+          if(personData.subscribed)
+            cell4.innerHTML = "<p>Yes</p>";
+          else
+            cell4.innerHTML = "<p>No</p>";
+          var cell5 = row.insertCell(4);
+          cell5.innerHTML = "<p>" + personData.confirm_number + "</p>";
+          var cell6 = row.insertCell(5);
+          if(personData.answers != null) {
+            var i = 0;
+            var htmlToAdd = "<p>";
+            for(i = 0; i < 9; ++i){
+                if(personData.answers[i] == -1){
+                  htmlToAdd += "<div class='tooltip'>" + (i + 1) + "<span class='tooltiptext'>" + questions[i] + "</span>: N\\A</div>&nbsp;&nbsp;&nbsp;";
+                }
+                else if(personData.answers[i] == 0){
+                  htmlToAdd += "<div class='tooltip'>" + (i + 1) + "<span class='tooltiptext'>" + questions[i] + "</span>: N</div>&nbsp;&nbsp;&nbsp;";
+                }  
+                else if(personData.answers[i] == 1){
+                  htmlToAdd += "<div class='tooltip'>" + (i + 1) + "<span class='tooltiptext'>" + questions[i] + "</span>: Y</div>&nbsp;&nbsp;&nbsp;";
+                }                  
+            }
+            htmlToAdd += "</p>";
+            cell6.innerHTML = htmlToAdd;
+          }
+          var cell7 = row.insertCell(6);
+          cell7.innerHTML = "<p>" + personData.notes + "</p>";
+          var cell8 = row.insertCell(7);
+          cell8.innerHTML = '<button onclick=' + deleteFunction + '>X</button>';
+        });
+      });
+      
+
+      var classesRef = firebase.database().ref('classes').orderByChild('time');
+      // var classesRef = firebase.database().ref('classes');
+      classesRef.on('value', function(snapshot) {
+        document.getElementById("loading_classes").style.display = "none";
+        document.getElementById("add_class_button").style.display = "block";
+        document.getElementById("classes_table_div").innerHTML = "<table id='classes_table'><tr><th>Time</th><th>Reserved</th><th>Capacity</th></tr></table>";
+        snapshot.forEach(function(childSnapshot) {
+          var classKey = childSnapshot.key;
+          var classData = childSnapshot.val();
+          var dateTime = new Date(classData.time);
+          var table = document.getElementById("classes_table");
+          var len = table.rows.length;
+          var row = table.insertRow(len);
+          var cell1 = row.insertCell(0);
+          var changeFunction = "onClassChanged('" + classKey + "')";
+          var saveFunction = "saveEditedClass('" + classKey + "')";
+          var deleteFunction = "deleteClass('" + classKey + "')";
+          cell1.innerHTML = '<input type="text" id="' + classKey + '_time" name="' + classKey + '_time" value="" />';
+          var cell2 = row.insertCell(1);
+          cell2.innerHTML = '<input type="number" id="' + classKey + '_reserved" onchange=' + changeFunction + ' value=' + classData.reserved + ' />';
+          var cell3 = row.insertCell(2);
+          cell3.innerHTML = '<input type="number" id="' + classKey + '_capacity" onchange=' + changeFunction + ' value=' + classData.capacity + ' />';
+          var cell4 = row.insertCell(3);
+          cell4.innerHTML = '<button onclick=' + deleteFunction + '>X</button>';
+          var cell5 = row.insertCell(4);
+          cell5.innerHTML = '<button onclick=' + saveFunction + '>Save</button>';
+          cell5.id = classKey + "_save";
+          cell5.style.display = "none";
+
+          var name= classKey + "_time";
+          $(function() {
+            $('input[name=' + name + ']').daterangepicker({
+              timePicker: true,
+              singleDatePicker: true,
+              showDropdowns: true,
+              startDate: dateTime,
+              // startDate: moment().startOf('hour'),
+              locale: {
+                format: 'MM/DD/YYYY hh:mm A'
+              }
+            }, function(start, end, label) {
+                onClassChanged(classKey);
+              // var years = moment().diff(start, 'years');
+              // var dateTest = new Date(document.getElementById(name).value);
+              // console.log(dateTest + " millis " + dateTest.getTime());
+            });
+          });
+        });
+      
+
+      });
+    }
+
+    function addClassRow()
+    {
+      document.getElementById("add_class_button").style.display = "none";
+      document.getElementById("new_class_div").style.display = "block";
+    }
+
+    function cancelAddClassRow()
+    {
+      document.getElementById("add_class_button").style.display = "block";
+      document.getElementById("new_class_div").style.display = "none";
+    }
+
+    function saveClassRow()
+    {
+      var classListRef = firebase.database().ref('classes');
+      var newClassRef = classListRef.push();
+      newClassRef.set({
+        'time': (new Date(document.getElementById("new_class_time").value)).getTime(),
+        'reserved' : (Number)(document.getElementById("new_class_reserved").value),
+        'capacity' : (Number)(document.getElementById("new_class_capacity").value)
+      });
+      document.getElementById("add_class_button").style.display = "block";
+      document.getElementById("new_class_div").style.display = "none";
+    }
+
+    function getFormattedDateTime(dateTime){
+      return daysShort[dateTime.getDay()] + " " + months[dateTime.getMonth()] + " " + dateTime.getDate() + getDateSuffix(dateTime) + " " + getTimeText(dateTime);
+    }
+
+    function onClassChanged(classKey){
+      document.getElementById(classKey + "_save").style.display = "block";
+    }
+
+    function saveEditedClass(classKey){
+      document.getElementById(classKey + "_save").style.display = "none";
+      var classRef = firebase.database().ref('classes/' + classKey);
+      classRef.set({
+        'time': (new Date(document.getElementById(classKey + "_time").value)).getTime(),
+        'reserved' : (Number)(document.getElementById(classKey + "_reserved").value),
+        'capacity' : (Number)(document.getElementById(classKey + "_capacity").value)
+      });
+    }
+
+    function deleteClass(classKey){
+      var classRef = firebase.database().ref('classes/' + classKey);
+      classRef.remove();
+    }
+  
+    function deletePerson(personKey){
+      var personRef = firebase.database().ref('people/' + personKey);
+      personRef.once('value', function(snapshot) {
+          var personData = snapshot.val();
+          var classesRef = firebase.database().ref('classes');
+          // var classesRef = firebase.database().ref('classes');
+          classesRef.once('value', function(snapshot) {
+            snapshot.forEach(function(childSnapshot) {
+              var classKey = childSnapshot.key;
+              var classData = childSnapshot.val();
+              if(classData.time == personData.time){
+                if(classData.reserved > 0){
+                  var classRef = firebase.database().ref('classes/' + classKey);
+                  classRef.update({
+                    'reserved' : classData.reserved - 1
+                  });
+                }
+                return;
+              }
+          });
+        });
+        var personRef = firebase.database().ref('people/' + personKey);
+        personRef.remove();
+      });
+    }
+    </script>
+
+  </body>
+</html>
